@@ -174,12 +174,12 @@
           flex-direction: column;
           gap: 40px;
         }
-        
+
         .clock-container {
           margin-right: 0;
           margin-bottom: 20px;
         }
-        
+
         .info-container {
           align-items: center;
           margin-left: 0;
@@ -198,7 +198,7 @@
       </div>
       <div class="info-container">
         <div class="weather-info">
-          <span class="weather">--<span style="color: yellow">●</span></span>
+          <span class="weather">--</span>
           <div class="weather-details">--</div>
         </div>
         <div class="time-info">
@@ -226,11 +226,14 @@
 
       let currentCity = "北京";
       const defaultCity = "北京";
+      const amapApiKey = "90e155d94a175f304e8e6a0ab76442b3";
+      const seniverseApiKey = "SxzzRtYy9v2Y-uYeD";
+      const waqiApiKey = "a41641ff4093358074df79313a7ca8668a69c5f2";
 
       // 获取基于IP的城市信息
       async function getCityByIP() {
         try {
-          const response = await fetch("https://restapi.amap.com/v3/ip?key=90e155d94a175f304e8e6a0ab76442b3");
+          const response = await fetch(`https://restapi.amap.com/v3/ip?key=${amapApiKey}`);
           const data = await response.json();
 
           if (data.status === "1" && data.city) {
@@ -248,7 +251,7 @@
       async function getWeather(city) {
         try {
           const response = await fetch(
-            `https://api.seniverse.com/v3/weather/daily.json?key=SxzzRtYy9v2Y-uYeD&location=${encodeURIComponent(
+            `https://api.seniverse.com/v3/weather/daily.json?key=${seniverseApiKey}&location=${encodeURIComponent(
               city
             )}&language=zh-Hans&unit=c&start=0&days=1`
           );
@@ -261,6 +264,7 @@
               low: weather.low,
               text: weather.text_day,
               humidity: weather.humidity,
+              code: weather.code_day < 0 || weather.code_day > 38 ? 99 : weather.code_day, // 添加天气code
             };
           } else {
             return null; // 获取天气失败
@@ -274,9 +278,7 @@
       // 获取空气质量信息
       async function getAirQuality(city) {
         try {
-          const response = await fetch(
-            `https://api.waqi.info/feed/${encodeURIComponent(city)}/?token=a41641ff4093358074df79313a7ca8668a69c5f2`
-          );
+          const response = await fetch(`https://api.waqi.info/feed/${encodeURIComponent(city)}/?token=${waqiApiKey}`);
           const data = await response.json();
           if (data.status === "ok" && data.data) {
             const aqi = data.data.aqi;
@@ -299,12 +301,12 @@
 
       // 更新天气显示
       async function updateWeather() {
-        const city = await getCityByIP();
-        const weather = await getWeather(city);
-        const airQuality = await getAirQuality(city);
+        const [weather, airQuality] = await Promise.all([getWeather(currentCity), getAirQuality(currentCity)]);
 
         if (weather) {
-          weatherEl.innerHTML = `${weather.temperature}° <span style="color: yellow">●</span>`;
+          // 使用天气code对应的图标
+          const weatherIcon = `<img src="images/weather/${weather.code}@1x.png" alt="${weather.text}" style="width: 20px; height: 20px; vertical-align: super;">`;
+          weatherEl.innerHTML = `${weather.temperature}° ${weatherIcon}`;
           weatherDetailsEl.textContent = `${weather.low}°~${weather.temperature}° ${weather.text} 湿度 ${weather.humidity}%`;
         }
 
@@ -349,13 +351,10 @@
       async function init() {
         // 获取城市信息
         const city = await getCityByIP();
-        currentCity = city;
+        currentCity = city ?? defaultCity;
 
         // 更新天气信息
         await updateWeather();
-
-        // 设置时间显示
-        setTime();
 
         // 定时更新时间
         setInterval(setTime, 300);
@@ -363,7 +362,7 @@
         // 每5分钟更新一次天气信息
         setInterval(async () => {
           await updateWeather();
-        }, 5 * 60 * 1000); // 5分钟 = 5 * 60 * 1000 毫秒
+        }, 5 * 60 * 1000);
       }
 
       // 页面加载完成后初始化
