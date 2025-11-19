@@ -285,7 +285,20 @@
             const aqi = data.data.aqi;
             const pm25 = data.data.iaqi?.pm25?.v || 0;
 
-            let level = "优";
+            let level = "";
+            if (aqi <= 50) {
+              level = "优";
+            } else if (aqi <= 100) {
+              level = "良";
+            } else if (aqi <= 150) {
+              level = "轻度污染";
+            } else if (aqi <= 200) {
+              level = "中度污染";
+            } else if (aqi <= 300) {
+              level = "重度污染";
+            } else {
+              level = "严重污染";
+            }
             return {
               aqi: aqi,
               pm25: pm25,
@@ -314,7 +327,6 @@
         if (airQuality) {
           airQualityEl.textContent = airQuality.aqi;
           airQualityDetailsEl.textContent = `空气质量 ${airQuality.level}`;
-          airQualityDetailsEl.style.color = airQuality.levelColor;
         }
       }
 
