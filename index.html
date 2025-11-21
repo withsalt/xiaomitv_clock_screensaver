@@ -123,6 +123,12 @@
         letter-spacing: -2px;
       }
 
+      .time-colon {
+        margin: 0 8px;
+        position: relative;
+        top: -0.1em;
+      }
+
       .time-period {
         font-size: 28px;
         margin-right: 10px;
@@ -212,6 +218,15 @@
       const amapApiKey = "90e155d94a175f304e8e6a0ab76442b3";
       const seniverseApiKey = "SxzzRtYy9v2Y-uYeD";
       const waqiApiKey = "a41641ff4093358074df79313a7ca8668a69c5f2";
+
+      // 解析 URL 参数
+      function getUrlParam(name) {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      }
+
+      // 获取时间格式（默认为 12 小时制）
+      const timeFormat = getUrlParam('t') === '1' ? 24 : 12;
 
       // 获取基于IP的城市信息
       async function getCityByIP() {
@@ -346,10 +361,10 @@
         const secondDegrees = (seconds / 60) * 360 + (milliseconds / 1000) * 6 + 180;
         secondGlow.style.transform = `translateX(-50%) rotate(${secondDegrees}deg)`;
 
-        const period = hours >= 12 ? "PM" : "AM";
-        const displayHour = hours == 0 ? 0 : hours % 12 || 12;
+        const period = timeFormat === 24 ? "" : (hours >= 12 ? "PM" : "AM");
+        const displayHour = timeFormat === 24 ? hours : (hours == 0 ? 0 : hours % 12 || 12);
         const displayMinutes = minutes.toString().padStart(2, "0");
-        timeEl.textContent = `${displayHour}:${displayMinutes}`;
+        timeEl.innerHTML = `${displayHour}<span class="time-colon">:</span>${displayMinutes}`;
         timePeriodEl.textContent = period;
 
         console.log(displayHour + "," + displayMinutes + "," + seconds);
