@@ -209,123 +209,113 @@
 
       let currentCity = "北京";
       const defaultCity = "北京";
-      const amapApiKey = "90e155d94a175f304e8e6a0ab76442b3";
-      const seniverseApiKey = "SxzzRtYy9v2Y-uYeD";
-      const waqiApiKey = "a41641ff4093358074df79313a7ca8668a69c5f2";
+      const weatherApiUrl = "https://127.0.0.1:7029/api/v1/Weather";
+      const weatherApiToken = "cf4267afb8284fa68c516b49688467a6";
 
-      // 获取基于IP的城市信息
-      async function getCityByIP() {
+      // 获取天气、位置和空气质量信息
+      async function getWeatherData() {
         try {
-          // 首先尝试高德地图API
-          const response = await fetch(`https://restapi.amap.com/v3/ip?key=${amapApiKey}`);
-          const data = await response.json();
+          const response = await fetch(`${weatherApiUrl}?tk=${weatherApiToken}&ip=ip`);
+          const result = await response.json();
 
-          if (data.status === "1" && data.city && data.city.length > 0) {
-            return data.city;
-          }
-        } catch (error) {
-          console.error("高德地图API获取城市信息失败:", error);
-        }
+          if (result.code === 0 && result.data) {
+            const data = result.data;
 
-        try {
-          // 如果高德地图API失败，尝试备用接口
-          console.log("尝试使用备用接口获取城市信息");
-          const backupResponse = await fetch("http://ipinfo.oncemi.com/?type=json");
-          const backupData = await backupResponse.json();
+            // 处理位置信息
+            let location = "";
+            if (data.location) {
+              const city = data.location.city || "";
+              const name = data.location.name || "";
 
-          if (backupData.area && backupData.area.length > 0) {
-            const areaParts = backupData.area.split("，");
-            if (areaParts.length > 1) {
-              const city = areaParts[areaParts.length - 1];
-              return city;
+              if (!name || city === name) {
+                location = city;
+              } else {
+                location = city + name;
+              }
             }
-          }
-        } catch (backupError) {
-          console.error("备用接口获取城市信息失败:", backupError);
-        }
 
-        return null;
-      }
+            // 获取今天的日期
+            const today = new Date().toISOString().split("T")[0]; // 格式: YYYY-MM-DD
 
-      // 获取天气信息
-      async function getWeather(city) {
-        try {
-          const response = await fetch(
-            `https://api.seniverse.com/v3/weather/daily.json?key=${seniverseApiKey}&location=${encodeURIComponent(
-              city
-            )}&language=zh-Hans&unit=c&start=0&days=1`
-          );
-          const data = await response.json();
+            // 从预报数据中找到今天的最高和最低温度
+            let highTemp = data.now.temp;
+            let lowTemp = data.now.temp;
 
-          if (data.results && data.results.length > 0 && data.results[0].daily && data.results[0].daily.length > 0) {
-            const weather = data.results[0].daily[0];
-            return {
-              temperature: weather.high,
-              low: weather.low,
-              text: weather.text_day,
-              humidity: weather.humidity,
-              code: weather.code_day < 0 || weather.code_day > 38 ? 99 : weather.code_day, // 添加天气code
-            };
-          } else {
-            return null; // 获取天气失败
-          }
-        } catch (error) {
-          console.error("获取天气信息失败:", error);
-          return null; // 获取天气失败
-        }
-      }
+            if (data.forecasts && data.forecasts.length > 0) {
+              const todayForecast = data.forecasts.find((f) => f.date === today);
+              if (todayForecast) {
+                highTemp = todayForecast.high;
+                lowTemp = todayForecast.low;
+              }
+            }
 
-      // 获取空气质量信息
-      async function getAirQuality(city) {
-        try {
-          const response = await fetch(`https://api.waqi.info/feed/${encodeURIComponent(city)}/?token=${waqiApiKey}`);
-          const data = await response.json();
-          if (data.status === "ok" && data.data) {
-            const aqi = data.data.aqi;
-            const pm25 = data.data.iaqi?.pm25?.v || 0;
-
-            let level = "";
+            // 计算AQI等级
+            const aqi = data.now.aqi || 0;
+            let aqiLevel = "";
             if (aqi <= 50) {
-              level = "优";
+              aqiLevel = "优";
             } else if (aqi <= 100) {
-              level = "良";
+              aqiLevel = "良";
             } else if (aqi <= 150) {
-              level = "轻度污染";
+              aqiLevel = "轻度污染";
             } else if (aqi <= 200) {
-              level = "中度污染";
+              aqiLevel = "中度污染";
             } else if (aqi <= 300) {
-              level = "重度污染";
+              aqiLevel = "重度污染";
             } else {
-              level = "严重污染";
+              aqiLevel = "严重污染";
             }
+
             return {
-              aqi: aqi,
-              pm25: pm25,
-              level: level,
+              location: location,
+              weather: {
+                temperature: highTemp,
+                low: lowTemp,
+                text: data.now.text,
+                humidity: data.now.rh,
+                icon: data.now.icon,
+              },
+              airQuality: {
+                aqi: aqi,
+                pm25: data.now.pm25 || 0,
+                level: aqiLevel,
+              },
             };
           } else {
+            console.error("获取天气数据失败:", result.message);
             return null;
           }
         } catch (error) {
-          console.error("获取空气质量信息失败:", error);
+          console.error("获取天气数据失败:", error);
           return null;
         }
       }
 
       // 更新天气显示
       async function updateWeather() {
-        const [weather, airQuality] = await Promise.all([getWeather(currentCity), getAirQuality(currentCity)]);
+        const result = await getWeatherData();
 
-        if (weather) {
-          // 使用天气code对应的图标
-          const weatherIcon = `<img src="https://www.quarkbook.com/public/images/icon/weather/${weather.code}@1x.png" alt="${weather.text}" style="width: 20px; height: 20px; vertical-align: super;">`;
-          weatherEl.innerHTML = `${weather.temperature}° ${weatherIcon}`;
-          weatherDetailsEl.textContent = `${weather.low}°~${weather.temperature}° ${weather.text} 湿度 ${weather.humidity}%`;
-        }
+        if (result) {
+          // 更新城市信息
+          if (result.location) {
+            currentCity = result.location;
+          }
 
-        if (airQuality) {
-          airQualityEl.textContent = airQuality.aqi;
-          airQualityDetailsEl.textContent = `空气质量 ${airQuality.level}`;
+          // 更新天气显示
+          if (result.weather) {
+            const weather = result.weather;
+            // 使用新接口返回的图标
+            const weatherIcon = `<img src="https://www.quarkbook.com/public/images/icon/weather/${weather.icon}@1x.png" alt="${weather.text}" style="width: 20px; height: 20px; vertical-align: super;">`;
+            weatherEl.innerHTML = `${weather.temperature}° ${weatherIcon}`;
+            weatherDetailsEl.textContent = `${weather.low}°~${weather.temperature}° ${weather.text} 湿度 ${weather.humidity}%`;
+          }
+
+          // 更新空气质量显示
+          if (result.airQuality) {
+            const airQuality = result.airQuality;
+            airQualityEl.textContent = airQuality.aqi;
+            airQualityDetailsEl.textContent = `空气质量 ${airQuality.level}`;
+          }
         }
       }
 
@@ -352,13 +342,11 @@
         timeEl.textContent = `${displayHour}:${displayMinutes}`;
         timePeriodEl.textContent = period;
 
-        console.log(displayHour + "," + displayMinutes + "," + seconds);
-
         const year = now.getFullYear();
         const month = (now.getMonth() + 1).toString().padStart(2, "0");
         const date = now.getDate().toString().padStart(2, "0");
         const day = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()];
-        dateLocationEl.textContent = `${year}-${month}-${date} ${day} ${currentCity}`;
+        dateLocationEl.textContent = `${year}.${month}.${date} ${day} ${currentCity}`;
       }
 
       function drawGlow() {
@@ -393,11 +381,7 @@
 
       // 初始化函数
       async function init() {
-        // 获取城市信息
-        const city = await getCityByIP();
-        currentCity = city ?? defaultCity;
-
-        // 更新天气信息
+        // 更新天气信息（同时会更新城市信息）
         await updateWeather();
 
         // 绘制发光效果
@@ -409,7 +393,7 @@
         // 每5分钟更新一次天气信息
         setInterval(async () => {
           await updateWeather();
-        }, 5 * 60 * 1000);
+        }, 10 * 60 * 1000);
       }
 
       // 页面加载完成后初始化
